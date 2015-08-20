@@ -4,15 +4,8 @@ import datetime
 from pprint import pprint
 from yahoo_finance import Share
 
-def date_as_str(date):
-    """
-    Takes a datetime object and returns a string
-    in the format of "2015-08-19"
-    """
-    return date.strftime("%Y-%m-%d")
 
-
-def K(share):
+def K(data, by=6):
     """
     K = 100[(C – L5close)/(H5 – L5)]
     C = the most recent closing price
@@ -23,12 +16,27 @@ def K(share):
 
     D = 100 X (H3/L3)
 
-    THINK of this as proportion, and not much more than tat.
+    Another way to do it is over an amount of moving averages,
+    which is what I've chosen to employ.
     """
+    close = get_prev_close(data)
+    # H5 = get_highest_of(data[1:by])
+    # L5 = get_lowest_of(data[1:by])
+    # L5Close = get_lowest_of(data[1:by], field='Close')
+    H5 = get_highest_of(data)
+    L5 = get_lowest_of(data)
+    L5Close = get_lowest_of(data, field='Close')
 
-    today = datetime.datetime.today()
-    todaystr = today.strftime("%Y-%m-%d")
-    return 100 * (  )
+    K = 100 * ( (close - L5Close) / (H5 - L5) )
+    return K
+
+
+def date_as_str(date):
+    """
+    Takes a datetime object and returns a string
+    in the format of "2015-08-19"
+    """
+    return date.strftime("%Y-%m-%d")
 
 
 def get_stats(name, daycount=10):
@@ -61,7 +69,8 @@ def get_last(data, n, field='Close'):
     lst = []
     for day in data[:n]:
         for k, v in day.items():
-            yield(k, v[field])
+            lst.append((k, float(v[field])))
+    return lst
 
 
 def get_highest_of(data, field='High'):
@@ -95,21 +104,59 @@ def get_prev_close(data):
     # but python insists on having the dict_keys type
     # not subscriptable; not treated the same as a list or tuple.
 
-    key = [k for k in latest.keys()]
+    key = list(latest.keys())
 
     # not idiomatic but it's simply the head of the nested dict
 
     return float(data[0][  key[0]  ]['Close'])
 
 
-def get_last_five(data):
-    pass
+def K_map(data, by=5):
+
+    # kept as anon func so IndexError
+    # fails silently
+
+    process = lambda x: K(x, by=by)
+    klst = []
+
+    local_data = data.copy()
+
+    while len(local_data) > 0:
+        klst.append(process(local_data))
+        del local_data[0]
+
+    return klst
 
 
-
-print("#"*50)
-pprint(get_stats("YHOO"))
-print("#"*50)
+def D_map(klst, by=3):
+    return moving_average(klst, by=by)
 
 
+def average(lst):
+    return sum(lst) / len(lst)
 
+
+def moving_average(lst, by=3):
+    result = []
+    for i, n in enumerate(lst):
+        try:
+            a = [lst[i + j] for j in range(by)]
+            result.append(average(a))
+        except IndexError:
+            result.append(None)
+    return result
+
+def get_dates(data):
+    dates = []
+    for day in data:
+        dates += list(day.keys())
+    return dates
+
+
+class Stochastic(object):
+    def __init__(self, stockname, days=10, k_by=6, d_by=3):
+        self.data = get_stats(stockname, daycount=days)
+        self.k_by = k_by
+        self.d_by = d_by
+        self.klst = K_map(self.data, self.k_by)
+        self.dlst = D_map(self.klst, self.d_by)
