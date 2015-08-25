@@ -1,4 +1,4 @@
-# Basic Stochastics for the Python Programmer
+# Stochastics
 
 Currently a work in progress, and not much to look at. 
 
